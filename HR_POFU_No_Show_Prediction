@@ -1,0 +1,683 @@
+##########################################################################
+# Author=Deepak Chaubey, Purpose= HR POFU Analytics-No-Show Prediction "
+##########################################################################
+# import necessary modules required to run this code"
+import pandas.core.algorithms as algos
+from pandas import Series
+import scipy.stats.stats as stats
+from scipy import stats
+import re
+import traceback
+from pylab import rcParams
+rcParams['figure.figsize'] = 14, 8
+
+import warnings
+warnings.filterwarnings('ignore')
+import os
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+import matplotlib.pyplot as plt
+max_bin = 20
+force_bin = 3
+
+""" First change the following directory link to where all input files do exist """
+
+os.chdir("C:\\Users\\CHAUBEYD\\PycharmProjects\\POFU_Analytics\\data\\MachineLearning")
+#******************* Read data from file 'POFU_Dataset.csv'**********************
+POFU = pd.read_csv("HR_POFU.csv")
+print(POFU.head())
+'''
+#**************************Data Cleaning & Data Mining********************************************#
+Candidate_ID dropped as its unique columns and will not be useful for data modeling
+Candidate_City_Location variable dropped because of too many categories
+Expectedhikeperc &  Offeredhikeperc created | Current CTC ,Expected CTC,Offered CTC dropped 
+Work_Location variable dropped because of too many categories
+Relocation_Flag created which is 1 if Relocation is Yes else 0 | Original variable Work_Location dropped
+Per_capita_diff created which is 1 if Relocation is 0 else difference between the per_capita_income_city_candidate and per_capita_income_of_city_of_relocation
+DOB converted to Age | DOB dropped
+NA Value for columns imputed with 0 (mean)
+#Resignation_Date dropped because made little intuitive impact on outcome
+'''
+df=POFU.drop(['Candidate_ID','DOB','Current_CTC','Expected_CTC','Offered_CTC'], axis=1)
+POFU=pd.DataFrame(df)
+POFU.replace([np.inf, -np.inf], np.nan, inplace=True)
+POFU.fillna(POFU.mean(), inplace=True)
+#POFU.fillna(-1, inplace=True)
+POFU['No_Show_ind'] = 0
+POFU.loc[POFU['No_Show'] == 1, 'No_Show_ind'] = 1
+
+dummy_gender = pd.get_dummies(POFU['Gender'], prefix='gend')
+dummy_interest = pd.get_dummies(POFU['Interest_Level'], prefix='intrstlvl')
+dummy_candidatestage = pd.get_dummies(POFU['Candidate_Stage'], prefix='cndtstage')
+dummy_candidatestat = pd.get_dummies(POFU['Candidate_Status'], prefix='cndtstate')
+
+continuous_columns = ['No_Show','Notice_Period', 'Expectedhikeperc', 'Offeredhikeperc',
+                      'Work_Exp','Age', 'per_capita_income_city_candidate', 'per_capita_income_of_city_of_relocation', 'Per_capita_diff', 'Relocation_Flag'
+                     ,'Resigned', 'Reported', 'BGV_Status']
+
+POFU_continuous = POFU[continuous_columns]
+
+POFU_continuous['Age'].describe()
+POFU['Candidate_Status'].value_counts()
+POFU['Interest_Level'].value_counts()
+
+POFU_new = pd.concat([dummy_gender, dummy_interest, dummy_candidatestage, dummy_candidatestat, POFU_continuous, POFU['No_Show_ind']], axis=1)
+
+print('*******************Hypothesis Testing using Chi-Square started ************************************')
+#chi-square test
+from scipy.stats import chi2
+#testing 'Interest_Level'
+contingency_table = pd.crosstab(POFU['Interest_Level'], POFU['No_Show'])
+print('contingency_table :-\n', contingency_table)
+# Observed Values
+Observed_Values = contingency_table.values
+print("Observed Values :-\n", Observed_Values)
+b = stats.chi2_contingency(contingency_table)
+Expected_Values = b[3]
+print("Expected Values :-\n", Expected_Values)
+no_of_rows = len(contingency_table.iloc[0:2, 0])
+no_of_columns = len(contingency_table.iloc[0, 0:2])
+ddof = (no_of_rows - 1) * (no_of_columns - 1)
+print("Degree of Freedom:-", ddof)
+alpha = 0.05
+
+chi_square = sum([(o - e) ** 2. / e for o, e in zip(Observed_Values, Expected_Values)])
+chi_square_statistic = chi_square[0] + chi_square[1]
+print("chi-square statistic:-", chi_square_statistic)
+critical_value = chi2.ppf(q=1 - alpha, df=ddof)
+print('critical_value:', critical_value)
+# p-value
+p_value = 1 - chi2.cdf(x=chi_square_statistic, df=ddof)
+print('p-value:', p_value)
+print('Significance level: ', alpha)
+print('Degree of Freedom: ', ddof)
+print('chi-square statistic:', chi_square_statistic)
+print('critical_value:', critical_value)
+print('p-value:', p_value)
+if chi_square_statistic >= critical_value:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+if p_value <= alpha:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+##
+#chi-square
+from scipy.stats import chi2
+#testing 'BGV_Status'
+contingency_table = pd.crosstab(POFU['BGV_Status'], POFU['No_Show'])
+print('contingency_table :-\n', contingency_table)
+# Observed Values
+Observed_Values = contingency_table.values
+print("Observed Values :-\n", Observed_Values)
+b = stats.chi2_contingency(contingency_table)
+Expected_Values = b[3]
+print("Expected Values :-\n", Expected_Values)
+no_of_rows = len(contingency_table.iloc[0:2, 0])
+no_of_columns = len(contingency_table.iloc[0, 0:2])
+ddof = (no_of_rows - 1) * (no_of_columns - 1)
+print("Degree of Freedom:-", ddof)
+alpha = 0.05
+
+chi_square = sum([(o - e) ** 2. / e for o, e in zip(Observed_Values, Expected_Values)])
+chi_square_statistic = chi_square[0] + chi_square[1]
+print("chi-square statistic:-", chi_square_statistic)
+critical_value = chi2.ppf(q=1 - alpha, df=ddof)
+print('critical_value:', critical_value)
+# p-value
+p_value = 1 - chi2.cdf(x=chi_square_statistic, df=ddof)
+print('p-value:', p_value)
+print('Significance level: ', alpha)
+print('Degree of Freedom: ', ddof)
+print('chi-square statistic:', chi_square_statistic)
+print('critical_value:', critical_value)
+print('p-value:', p_value)
+if chi_square_statistic >= critical_value:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+if p_value <= alpha:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+##
+#chi-square
+from scipy.stats import chi2
+#testing 'Relocation_Flag'
+contingency_table = pd.crosstab(POFU['Relocation_Flag'], POFU['No_Show'])
+print('contingency_table :-\n', contingency_table)
+# Observed Values
+Observed_Values = contingency_table.values
+print("Observed Values :-\n", Observed_Values)
+b = stats.chi2_contingency(contingency_table)
+Expected_Values = b[3]
+print("Expected Values :-\n", Expected_Values)
+no_of_rows = len(contingency_table.iloc[0:2, 0])
+no_of_columns = len(contingency_table.iloc[0, 0:2])
+ddof = (no_of_rows - 1) * (no_of_columns - 1)
+print("Degree of Freedom:-", ddof)
+alpha = 0.05
+
+chi_square = sum([(o - e) ** 2. / e for o, e in zip(Observed_Values, Expected_Values)])
+chi_square_statistic = chi_square[0] + chi_square[1]
+print("chi-square statistic:-", chi_square_statistic)
+critical_value = chi2.ppf(q=1 - alpha, df=ddof)
+print('critical_value:', critical_value)
+# p-value
+p_value = 1 - chi2.cdf(x=chi_square_statistic, df=ddof)
+print('p-value:', p_value)
+print('Significance level: ', alpha)
+print('Degree of Freedom: ', ddof)
+print('chi-square statistic:', chi_square_statistic)
+print('critical_value:', critical_value)
+print('p-value:', p_value)
+if chi_square_statistic >= critical_value:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+if p_value <= alpha:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+##
+#chi-square
+from scipy.stats import chi2
+#testing 'per_capita_income_city_candidate'
+contingency_table = pd.crosstab(POFU['per_capita_income_city_candidate'], POFU['No_Show'])
+print('contingency_table :-\n', contingency_table)
+# Observed Values
+Observed_Values = contingency_table.values
+print("Observed Values :-\n", Observed_Values)
+b = stats.chi2_contingency(contingency_table)
+Expected_Values = b[3]
+print("Expected Values :-\n", Expected_Values)
+no_of_rows = len(contingency_table.iloc[0:2, 0])
+no_of_columns = len(contingency_table.iloc[0, 0:2])
+ddof = (no_of_rows - 1) * (no_of_columns - 1)
+print("Degree of Freedom:-", ddof)
+alpha = 0.05
+
+chi_square = sum([(o - e) ** 2. / e for o, e in zip(Observed_Values, Expected_Values)])
+chi_square_statistic = chi_square[0] + chi_square[1]
+print("chi-square statistic:-", chi_square_statistic)
+critical_value = chi2.ppf(q=1 - alpha, df=ddof)
+print('critical_value:', critical_value)
+# p-value
+p_value = 1 - chi2.cdf(x=chi_square_statistic, df=ddof)
+print('p-value:', p_value)
+print('Significance level: ', alpha)
+print('Degree of Freedom: ', ddof)
+print('chi-square statistic:', chi_square_statistic)
+print('critical_value:', critical_value)
+print('p-value:', p_value)
+if chi_square_statistic >= critical_value:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+if p_value <= alpha:
+    print("Reject H0,There is a relationship between 2 categorical variables")
+else:
+    print("Retain H0,There is no relationship between 2 categorical variables")
+
+print('*******************Hypothesis Testing using Chi-Square completed ************************************')
+##
+
+
+#***************************************************************
+# Calculating WOE and IV for identifying most important variable
+#***************************************************************
+
+#Define a binning function for continuous independent variables
+def mono_bin(Y, X, n=max_bin):
+    df1 = pd.DataFrame({"X": X, "Y": Y})
+    justmiss = df1[['X', 'Y']][df1.X.isnull()]
+    notmiss = df1[['X', 'Y']][df1.X.notnull()]
+    r = 0
+    while np.abs(r) < 1:
+        try:
+            d1 = pd.DataFrame({"X": notmiss.X, "Y": notmiss.Y, "Bucket": pd.qcut(notmiss.X, n)})
+            d2 = d1.groupby('Bucket', as_index=True)
+            r, p = stats.spearmanr(d2.mean().X, d2.mean().Y)
+            n = n - 1
+        except Exception as e:
+            n = n - 1
+
+    if len(d2) == 1:
+        n = force_bin
+        bins = algos.quantile(notmiss.X, np.linspace(0, 1, n))
+        if len(np.unique(bins)) == 2:
+            bins = np.insert(bins, 0, 1)
+            bins[1] = bins[1] - (bins[1] / 2)
+        d1 = pd.DataFrame(
+            {"X": notmiss.X, "Y": notmiss.Y, "Bucket": pd.cut(notmiss.X, np.unique(bins), include_lowest=True)})
+        d2 = d1.groupby('Bucket', as_index=True)
+
+    d3 = pd.DataFrame({}, index=[])
+    d3["MIN_VALUE"] = d2.min().X
+    d3["MAX_VALUE"] = d2.max().X
+    d3["COUNT"] = d2.count().Y
+    d3["EVENT"] = d2.sum().Y
+    d3["NONEVENT"] = d2.count().Y - d2.sum().Y
+    d3 = d3.reset_index(drop=True)
+
+    if len(justmiss.index) > 0:
+        d4 = pd.DataFrame({'MIN_VALUE': np.nan}, index=[0])
+        d4["MAX_VALUE"] = np.nan
+        d4["COUNT"] = justmiss.count().Y
+        d4["EVENT"] = justmiss.sum().Y
+        d4["NONEVENT"] = justmiss.count().Y - justmiss.sum().Y
+        d3 = d3.append(d4, ignore_index=True)
+
+    d3["EVENT_RATE"] = d3.EVENT / d3.COUNT
+    d3["NON_EVENT_RATE"] = d3.NONEVENT / d3.COUNT
+    d3["DIST_EVENT"] = d3.EVENT / d3.sum().EVENT
+    d3["DIST_NON_EVENT"] = d3.NONEVENT / d3.sum().NONEVENT
+    d3["WOE"] = np.log(d3.DIST_EVENT / d3.DIST_NON_EVENT)
+    d3["IV"] = (d3.DIST_EVENT - d3.DIST_NON_EVENT) * np.log(d3.DIST_EVENT / d3.DIST_NON_EVENT)
+    d3["VAR_NAME"] = "VAR"
+    d3 = d3[['VAR_NAME', 'MIN_VALUE', 'MAX_VALUE', 'COUNT', 'EVENT', 'EVENT_RATE', 'NONEVENT', 'NON_EVENT_RATE',
+             'DIST_EVENT', 'DIST_NON_EVENT', 'WOE', 'IV']]
+    d3 = d3.replace([np.inf, -np.inf], 0)
+    d3.IV = d3.IV.sum()
+
+    return (d3)
+##Define a binning function for categorical independent variables
+def char_bin(Y, X):
+    df1 = pd.DataFrame({"X": X, "Y": Y})
+    justmiss = df1[['X', 'Y']][df1.X.isnull()]
+    notmiss = df1[['X', 'Y']][df1.X.notnull()]
+    df2 = notmiss.groupby('X', as_index=True)
+
+    d3 = pd.DataFrame({}, index=[])
+    d3["COUNT"] = df2.count().Y
+    d3["MIN_VALUE"] = df2.sum().Y.index
+    d3["MAX_VALUE"] = d3["MIN_VALUE"]
+    d3["EVENT"] = df2.sum().Y
+    d3["NONEVENT"] = df2.count().Y - df2.sum().Y
+
+    if len(justmiss.index) > 0:
+        d4 = pd.DataFrame({'MIN_VALUE': np.nan}, index=[0])
+        d4["MAX_VALUE"] = np.nan
+        d4["COUNT"] = justmiss.count().Y
+        d4["EVENT"] = justmiss.sum().Y
+        d4["NONEVENT"] = justmiss.count().Y - justmiss.sum().Y
+        d3 = d3.append(d4, ignore_index=True)
+
+    d3["EVENT_RATE"] = d3.EVENT / d3.COUNT
+    d3["NON_EVENT_RATE"] = d3.NONEVENT / d3.COUNT
+    d3["DIST_EVENT"] = d3.EVENT / d3.sum().EVENT
+    d3["DIST_NON_EVENT"] = d3.NONEVENT / d3.sum().NONEVENT
+    d3["WOE"] = np.log(d3.DIST_EVENT / d3.DIST_NON_EVENT)
+    d3["IV"] = (d3.DIST_EVENT - d3.DIST_NON_EVENT) * np.log(d3.DIST_EVENT / d3.DIST_NON_EVENT)
+    d3["VAR_NAME"] = "VAR"
+    d3 = d3[['VAR_NAME', 'MIN_VALUE', 'MAX_VALUE', 'COUNT', 'EVENT', 'EVENT_RATE', 'NONEVENT', 'NON_EVENT_RATE',
+             'DIST_EVENT', 'DIST_NON_EVENT', 'WOE', 'IV']]
+    d3 = d3.replace([np.inf, -np.inf], 0)
+    d3.IV = d3.IV.sum()
+    d3 = d3.reset_index(drop=True)
+
+    return (d3)
+
+def data_vars(df1, No_Show):
+    stack = traceback.extract_stack()
+    filename, lineno, function_name, code = stack[-2]
+    vars_name = re.compile(r'\((.*?)\).*$').search(code).groups()[0]
+    final = (re.findall(r"[\w']+", vars_name))[-1]
+
+    x = df1.dtypes.index
+    count = -1
+
+    for i in x:
+        if i.upper() not in (final.upper()):
+            if np.issubdtype(df1[i], np.number) and len(Series.unique(df1[i])) > 2:
+                conv = mono_bin(No_Show, df1[i])
+                conv["VAR_NAME"] = i
+                count = count + 1
+            else:
+                conv = char_bin(No_Show, df1[i])
+                conv["VAR_NAME"] = i
+                count = count + 1
+
+            if count == 0:
+                iv_df = conv
+            else:
+                iv_df = iv_df.append(conv, ignore_index=True)
+
+    iv = pd.DataFrame({'IV': iv_df.groupby('VAR_NAME').IV.max()})
+    iv = iv.reset_index()
+    return (iv_df, iv)
+final_iv, IV = data_vars(df,df.No_Show)
+#print(final_iv)
+
+IV.sort_values('IV',ascending=False)
+print(IV)
+# Consider only the meaningful IV and ignoring the rest
+#indexNames  = IV[(IV['IV'] <= 0.02) & ( IV['IV'] >= 0.5)].index
+#IV_test=pd.DataFrame(IV.drop(indexNames , inplace=True))
+#IV_new=pd.DataFrame(IV)
+#print(IV_test)
+
+labels = IV['VAR_NAME']
+data = IV['IV']
+plt.xticks(range(len(data)), labels)
+plt.xlabel('Attributes')
+plt.ylabel('IV')
+plt.title('IV distribution')
+plt.bar(range(len(data)), data)
+plt.show()
+#tickangle = -45,title = 'Attributes'
+
+labels1 = final_iv['VAR_NAME']
+data1 = final_iv['WOE']
+#text = final_iv['VAR_NAME']
+plt.xticks(range(len(data1)), final_iv['VAR_NAME'])
+plt.xlabel('Attributes')
+plt.ylabel('WOE')
+#plt.title('WOE distribution')
+plt.bar(range(len(data1)), data1)
+plt.show()
+#**************************************************
+# Train & Test data split in 70 :30 ratio
+x_train, x_test, y_train, y_test = train_test_split(POFU_new.drop(['No_Show_ind'], axis=1),POFU_new['No_Show_ind'], train_size=0.7, random_state=42)
+#x_test.fillna(-1, inplace=True)
+x_test = x_test.fillna(x_train.mean())
+print('***************Using Logistic regression model fitting*********************************')
+
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+logreg = LogisticRegression()
+logreg.fit(x_train, y_train)
+y_pred = logreg.predict(x_test)
+print('Accuracy of logistic regression classifier on test set: {:.2f}'.format(logreg.score(x_test, y_test)))
+
+#Confusion Matrix
+from sklearn.metrics import confusion_matrix
+confusion_matrix = confusion_matrix(y_test, y_pred)
+print(confusion_matrix)
+
+#Compute precision, recall, F-measure and support
+from sklearn.metrics import classification_report
+print(classification_report(y_test, y_pred))
+
+#ROC Curve
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_curve
+logit_roc_auc = roc_auc_score(y_test, logreg.predict(x_test))
+fpr, tpr, thresholds = roc_curve(y_test, logreg.predict_proba(x_test)[:,1])
+plt.figure()
+plt.plot(fpr, tpr, label='Logistic Regression (area = %0.2f)' % logit_roc_auc)
+plt.plot([0, 1], [0, 1],'r--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.savefig('Log_ROC')
+plt.show()
+
+# Decision Tree Classifier
+print('*************************Using Decision Tree Classifier******************************')
+
+from sklearn.tree import DecisionTreeClassifier
+dt_fit = DecisionTreeClassifier(criterion="gini", max_depth=5, min_samples_split=2, min_samples_leaf=1, random_state=42)
+dt_fit.fit(x_train, y_train)
+
+print("\nDecision Tree - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, dt_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nDecision Tree - Train accuracy:", round(accuracy_score(y_train, dt_fit.predict(x_train)), 3))
+print("\nDecision Tree - Train Classification Report\n", classification_report(y_train, dt_fit.predict(x_train)))
+
+print("\n\nDecision Tree - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, dt_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nDecision Tree - Test accuracy:", round(accuracy_score(y_test, dt_fit.predict(x_test)), 3))
+print("\nDecision Tree - Test Classification Report\n", classification_report(y_test, dt_fit.predict(x_test)))
+
+# Tuning class weights to analyze accuracy, precision & recall
+
+dummyarray = np.empty((6, 10),dtype=float)
+dt_wttune = pd.DataFrame(dummyarray)
+
+dt_wttune.columns = ["zero_wght", "one_wght", "tr_accuracy", "tst_accuracy", "prec_zero", "prec_one","prec_ovll", "recl_zero", "recl_one", "recl_ovll"]
+zero_clwghts = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+for i in range(len(zero_clwghts)):
+    clwght = {0: zero_clwghts[i], 1: 1.0 - zero_clwghts[i]}
+    dt_fit = DecisionTreeClassifier(criterion="gini", max_depth=6, min_samples_split=2,min_samples_leaf=1, random_state=42, class_weight=clwght)
+    dt_fit.fit(x_train, y_train)
+    dt_wttune.loc[i, 'zero_wght'] = clwght[0]
+    dt_wttune.loc[i, 'one_wght'] = clwght[1]
+    dt_wttune.loc[i, 'tr_accuracy'] = round(accuracy_score(y_train, dt_fit.predict(x_train)), 3)
+    dt_wttune.loc[i, 'tst_accuracy'] = round(accuracy_score(y_test, dt_fit.predict(x_test)), 3)
+
+    clf_sp = classification_report(y_test, dt_fit.predict(x_test)).split()
+    dt_wttune.loc[i, 'prec_zero'] = float(clf_sp[5])
+    dt_wttune.loc[i, 'prec_one'] = float(clf_sp[10])
+    dt_wttune.loc[i, 'prec_ovll'] = float(clf_sp[19])
+
+    dt_wttune.loc[i, 'recl_zero'] = float(clf_sp[6])
+    dt_wttune.loc[i, 'recl_one'] = float(clf_sp[11])
+    dt_wttune.loc[i, 'recl_ovll'] = float(clf_sp[25])
+
+    print("\nClass Weights", clwght, "Train accuracy:", round(accuracy_score(y_train, dt_fit.predict(x_train)), 3),
+          "Test accuracy:", round(accuracy_score(y_test, dt_fit.predict(x_test)), 3))
+    print("Test Confusion Matrix\n\n",
+          pd.crosstab(y_test, dt_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+
+# Bagging Classifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import BaggingClassifier
+
+dt_fit = DecisionTreeClassifier(criterion="gini",max_depth=5,min_samples_split=2,min_samples_leaf=1,random_state=42,
+                                class_weight = {0:0.3,1:0.7})
+
+bag_fit = BaggingClassifier(base_estimator= dt_fit,n_estimators=5000,max_samples=0.67,max_features=1.0,
+                            bootstrap=True,bootstrap_features=True,n_jobs=-1,random_state=42)
+
+bag_fit.fit(x_train, y_train)
+
+print ("\nBagging - Train Confusion Matrix\n\n",pd.crosstab(y_train,bag_fit.predict(x_train),rownames = ["Actual"],colnames = ["Predicted"]))
+print ("\nBagging- Train accuracy",round(accuracy_score(y_train,bag_fit.predict(x_train)),3))
+print ("\nBagging  - Train Classification Report\n",classification_report(y_train,bag_fit.predict(x_train)))
+
+print ("\n\nBagging - Test Confusion Matrix\n\n",pd.crosstab(y_test,bag_fit.predict(x_test),rownames = ["Actual"],colnames = ["Predicted"]))
+print ("\nBagging - Test accuracy",round(accuracy_score(y_test,bag_fit.predict(x_test)),3))
+print ("\nBagging - Test Classification Report\n",classification_report(y_test,bag_fit.predict(x_test)))
+
+# Adaboost Classifier
+print('**************Adaboost Classifier******************')
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import AdaBoostClassifier
+dtree = DecisionTreeClassifier(criterion='gini',max_depth=1)
+
+adabst_fit = AdaBoostClassifier(base_estimator= dtree,n_estimators=5000,learning_rate=0.05,random_state=42)
+
+adabst_fit.fit(x_train, y_train)
+
+print ("\nAdaBoost - Train Confusion Matrix\n\n",pd.crosstab(y_train,adabst_fit.predict(x_train),rownames = ["Actual"],colnames = ["Predicted"]))
+print ("\nAdaBoost  - Train accuracy",round(accuracy_score(y_train,adabst_fit.predict(x_train)),3))
+print ("\nAdaBoost  - Train Classification Report\n",classification_report(y_train,adabst_fit.predict(x_train)))
+
+print ("\n\nAdaBoost  - Test Confusion Matrix\n\n",pd.crosstab(y_test,adabst_fit.predict(x_test),rownames = ["Actual"],colnames = ["Predicted"]))
+print ("\nAdaBoost  - Test accuracy",round(accuracy_score(y_test,adabst_fit.predict(x_test)),3))
+print ("\nAdaBoost - Test Classification Report\n",classification_report(y_test,adabst_fit.predict(x_test)))
+
+# Xgboost Classifier
+print('******************Now Lets Try XGBoost Method*****************************')
+import xgboost as xgb
+xgb_fit = xgb.XGBClassifier(max_depth=2, n_estimators=5000, learning_rate=0.05)
+xgb_fit.fit(x_train, y_train)
+
+print ("\nXGBoost - Train Confusion Matrix\n\n",pd.crosstab(y_train,xgb_fit.predict(x_train),rownames = ["Actuall"],colnames = ["Predicted"]))
+print ("\nXGBoost - Train accuracy",round(accuracy_score(y_train,xgb_fit.predict(x_train)),3))
+print ("\nXGBoost  - Train Classification Report\n",classification_report(y_train,xgb_fit.predict(x_train)))
+
+print ("\n\nXGBoost - Test Confusion Matrix\n\n",pd.crosstab(y_test,xgb_fit.predict(x_test),rownames = ["Actuall"],colnames = ["Predicted"]))
+print ("\nXGBoost - Test accuracy",round(accuracy_score(y_test,xgb_fit.predict(x_test)),3))
+print ("\nXGBoost - Test Classification Report\n",classification_report(y_test,xgb_fit.predict(x_test)))
+
+# Ensemble of Ensembles - by fitting various classifiers
+print('************** Ensemble of Ensembles - by fitting various classifiers*************')
+clwght = {0: 0.3, 1: 0.7}
+
+# Classifier 1
+from sklearn.linear_model import LogisticRegression
+
+clf1_logreg_fit = LogisticRegression(fit_intercept=True, class_weight=clwght)
+clf1_logreg_fit.fit(x_train, y_train)
+
+print("\nLogistic Regression for Ensemble - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, clf1_logreg_fit.predict(x_train),rownames=["Actual"], colnames=["Predicted"]))
+print("\nLogistic Regression for Ensemble - Train accuracy",round(accuracy_score(y_train, clf1_logreg_fit.predict(x_train)), 3))
+print("\nLogistic Regression for Ensemble - Train Classification Report\n",classification_report(y_train, clf1_logreg_fit.predict(x_train)))
+
+print("\n\nLogistic Regression for Ensemble - Test Confusion Matrix\n\n",pd.crosstab(y_test, clf1_logreg_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nLogistic Regression for Ensemble - Test accuracy",
+      round(accuracy_score(y_test, clf1_logreg_fit.predict(x_test)), 3))
+print("\nLogistic Regression for Ensemble - Test Classification Report\n",classification_report(y_test, clf1_logreg_fit.predict(x_test)))
+
+# Classifier 2
+from sklearn.tree import DecisionTreeClassifier
+
+clf2_dt_fit = DecisionTreeClassifier(criterion="gini", max_depth=5, min_samples_split=2,
+                                     min_samples_leaf=1, random_state=42, class_weight=clwght)
+clf2_dt_fit.fit(x_train, y_train)
+
+print("\nDecision Tree for Ensemble - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, clf2_dt_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nDecision Tree for Ensemble - Train accuracy", round(accuracy_score(y_train, clf2_dt_fit.predict(x_train)), 3))
+print("\nDecision Tree for Ensemble - Train Classification Report\n",
+      classification_report(y_train, clf2_dt_fit.predict(x_train)))
+
+print("\n\nDecision Tree for Ensemble - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, clf2_dt_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nDecision Tree for Ensemble - Test accuracy", round(accuracy_score(y_test, clf2_dt_fit.predict(x_test)), 3))
+print("\nDecision Tree for Ensemble - Test Classification Report\n",
+      classification_report(y_test, clf2_dt_fit.predict(x_test)))
+
+# Classifier 3
+from sklearn.ensemble import RandomForestClassifier
+
+clf3_rf_fit = RandomForestClassifier(n_estimators=10000, criterion="gini", max_depth=6,
+                                     min_samples_split=2, min_samples_leaf=1, class_weight=clwght)
+clf3_rf_fit.fit(x_train, y_train)
+
+print("\nRandom Forest for Ensemble - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, clf3_rf_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nRandom Forest for Ensemble - Train accuracy", round(accuracy_score(y_train, clf3_rf_fit.predict(x_train)), 3))
+print("\nRandom Forest for Ensemble - Train Classification Report\n", classification_report(y_train, clf3_rf_fit.predict(x_train)))
+
+print("\n\nRandom Forest for Ensemble - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, clf3_rf_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nRandom Forest for Ensemble - Test accuracy", round(accuracy_score(y_test, clf3_rf_fit.predict(x_test)), 3))
+print("\nRandom Forest for Ensemble - Test Classification Report\n",
+      classification_report(y_test, clf3_rf_fit.predict(x_test)))
+
+# Classifier 4
+from sklearn.ensemble import AdaBoostClassifier
+
+clf4_dtree = DecisionTreeClassifier(criterion='gini', max_depth=1, class_weight=clwght)
+clf4_adabst_fit = AdaBoostClassifier(base_estimator=clf4_dtree,
+                                     n_estimators=5000, learning_rate=0.05, random_state=42)
+
+clf4_adabst_fit.fit(x_train, y_train)
+
+print("\nAdaBoost for Ensemble  - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, clf4_adabst_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nAdaBoost for Ensemble   - Train accuracy", round(accuracy_score(y_train, clf4_adabst_fit.predict(x_train)), 3))
+print("\nAdaBoost for Ensemble   - Train Classification Report\n",
+      classification_report(y_train, clf4_adabst_fit.predict(x_train)))
+
+print("\n\nAdaBoost for Ensemble   - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, clf4_adabst_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nAdaBoost for Ensemble   - Test accuracy", round(accuracy_score(y_test, clf4_adabst_fit.predict(x_test)), 3))
+print("\nAdaBoost for Ensemble  - Test Classification Report\n",
+      classification_report(y_test, clf4_adabst_fit.predict(x_test)))
+
+ensemble = pd.DataFrame()
+
+ensemble["log_output_one"] = pd.DataFrame(clf1_logreg_fit.predict_proba(x_train))[1]
+ensemble["dtr_output_one"] = pd.DataFrame(clf2_dt_fit.predict_proba(x_train))[1]
+ensemble["rf_output_one"] = pd.DataFrame(clf3_rf_fit.predict_proba(x_train))[1]
+ensemble["adb_output_one"] = pd.DataFrame(clf4_adabst_fit.predict_proba(x_train))[1]
+
+ensemble = pd.concat([ensemble, pd.DataFrame(y_train).reset_index(drop=True)], axis=1)
+
+# Fitting meta-classifier
+meta_logit_fit = LogisticRegression(fit_intercept=False)
+meta_logit_fit.fit(ensemble[['log_output_one', 'dtr_output_one', 'rf_output_one', 'adb_output_one']],
+                   ensemble['No_Show_ind'])
+
+coefs = meta_logit_fit.coef_
+print("Co-efficients for LR, DT, RF & AB are:", coefs)
+
+ensemble_test = pd.DataFrame()
+ensemble_test["log_output_one"] = pd.DataFrame(clf1_logreg_fit.predict_proba(x_test))[1]
+ensemble_test["dtr_output_one"] = pd.DataFrame(clf2_dt_fit.predict_proba(x_test))[1]
+ensemble_test["rf_output_one"] = pd.DataFrame(clf3_rf_fit.predict_proba(x_test))[1]
+ensemble_test["adb_output_one"] = pd.DataFrame(clf4_adabst_fit.predict_proba(x_test))[1]
+
+ensemble_test["all_one"] = meta_logit_fit.predict(
+    ensemble_test[['log_output_one', 'dtr_output_one', 'rf_output_one', 'adb_output_one']])
+
+ensemble_test = pd.concat([ensemble_test, pd.DataFrame(y_test).reset_index(drop=True)], axis=1)
+
+print("\n\nEnsemble of Models - Test Confusion Matrix\n\n",
+      pd.crosstab(ensemble_test['No_Show_ind'], ensemble_test['all_one'], rownames=["Actual"],
+                  colnames=["Predicted"]))
+print("\nEnsemble of Models - Test accuracy",
+      round(accuracy_score(ensemble_test['No_Show_ind'], ensemble_test['all_one']), 3))
+print("\nEnsemble of Models - Test Classification Report\n",
+      classification_report(ensemble_test['No_Show_ind'], ensemble_test['all_one']))
+
+# Ensemble of Ensembles - by applying bagging on simple classifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import AdaBoostClassifier
+
+clwght = {0: 0.3, 1: 0.7}
+
+eoe_dtree = DecisionTreeClassifier(criterion='gini', max_depth=1, class_weight=clwght)
+eoe_adabst_fit = AdaBoostClassifier(base_estimator=eoe_dtree,
+                                    n_estimators=500, learning_rate=0.05, random_state=42)
+eoe_adabst_fit.fit(x_train, y_train)
+
+print("\nAdaBoost - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, eoe_adabst_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nAdaBoost - Train accuracy", round(accuracy_score(y_train, eoe_adabst_fit.predict(x_train)), 3))
+print("\nAdaBoost  - Train Classification Report\n", classification_report(y_train, eoe_adabst_fit.predict(x_train)))
+
+print("\n\nAdaBoost - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, eoe_adabst_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nAdaBoost - Test accuracy", round(accuracy_score(y_test, eoe_adabst_fit.predict(x_test)), 3))
+print("\nAdaBoost - Test Classification Report\n", classification_report(y_test, eoe_adabst_fit.predict(x_test)))
+
+bag_fit = BaggingClassifier(base_estimator=eoe_adabst_fit, n_estimators=50,
+                            max_samples=1.0, max_features=1.0,
+                            bootstrap=True,
+                            bootstrap_features=False,
+                            n_jobs=-1,
+                            random_state=42)
+
+bag_fit.fit(x_train, y_train)
+
+print("\nEnsemble of AdaBoost - Train Confusion Matrix\n\n",
+      pd.crosstab(y_train, bag_fit.predict(x_train), rownames=["Actual"], colnames=["Predicted"]))
+print("\nEnsemble of AdaBoost - Train accuracy", round(accuracy_score(y_train, bag_fit.predict(x_train)), 3))
+print("\nEnsemble of AdaBoost  - Train Classification Report\n",
+      classification_report(y_train, bag_fit.predict(x_train)))
+
+print("\n\nEnsemble of AdaBoost - Test Confusion Matrix\n\n",
+      pd.crosstab(y_test, bag_fit.predict(x_test), rownames=["Actual"], colnames=["Predicted"]))
+print("\nEnsemble of AdaBoost - Test accuracy", round(accuracy_score(y_test, bag_fit.predict(x_test)), 3))
+print("\nEnsemble of AdaBoost - Test Classification Report\n", classification_report(y_test, bag_fit.predict(x_test)))
